@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Acorn Decks">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1b1d22">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>Acorn Deck Builder</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: sticky top bar, three tabs (Search / Commander / Deck). Search and Commander share one endless-scroll card grid. */
+:root{
+  --bg:#eceef1; --surface:#ffffff; --surface2:#dfe2e7; --fg:#1d2026; --muted:#5d6572;
+  --line:#c9ced6; --silver:#8b95a5; --acorn:#b4551d; --acorn-fg:#ffffff; --ok:#1f7a45; --bad:#b3261e;
+  --display:'Bricolage Grotesque','Helvetica Neue',Arial,sans-serif;
+  --body:'DM Sans',system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#15171b; --surface:#1e2127; --surface2:#2a2e36; --fg:#e9ebef; --muted:#9aa2af;
+  --line:#343944; --silver:#aeb7c6; --acorn:#e8803f; --acorn-fg:#1a0e05; --ok:#53c383; --bad:#ff7a70; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15171b; --surface:#1e2127; --surface2:#2a2e36; --fg:#e9ebef; --muted:#9aa2af;
+  --line:#343944; --silver:#aeb7c6; --acorn:#e8803f; --acorn-fg:#1a0e05; --ok:#53c383; --bad:#ff7a70; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px;
+  -webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);padding-block:10px 8px;border-bottom:1px solid var(--line);margin-inline:-16px;padding-inline:16px}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+h1{font:800 22px/1 var(--display);margin:0;letter-spacing:-.02em}
+h1 span{color:var(--acorn)}
+.tabs{display:flex;gap:6px;margin-top:10px}
+.tab{flex:1;padding:9px 0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;font:700 14px var(--body);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tab .n{font-family:var(--mono);font-size:12px;margin-left:6px;opacity:.8}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--acorn);outline-offset:2px}
+main{max-width:980px;margin:0 auto;padding-top:14px}
+.lbl{font:700 11px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:10px 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:6px 12px;font:500 13px var(--body);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--acorn);border-color:var(--acorn);color:var(--acorn-fg);font-weight:700}
+.pip{width:36px;padding:6px 0;text-align:center;font-weight:700}
+.row{display:flex;gap:8px;margin-top:10px}
+input[type=search],input[type=text],input[type=number]{flex:1;min-width:0;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:16px var(--body)}
+.go{padding:0 16px;border-radius:8px;border:0;background:var(--acorn);color:var(--acorn-fg);font:700 14px var(--body);cursor:pointer}
+.hint{color:var(--muted);font-size:13px;margin:8px 0 12px}
+.hint code,.mono{font-family:var(--mono);font-size:12px;word-break:break-word}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.card{position:relative;min-width:0}
+.card img{display:block;width:100%;aspect-ratio:488/680;border-radius:5%/3.6%;background:var(--surface2);cursor:pointer}
+.card .nm{font-size:12px;margin-top:4px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{position:absolute;top:6px;right:6px;background:var(--acorn);color:var(--acorn-fg);font:700 12px var(--mono);padding:3px 8px;border-radius:999px;box-shadow:0 1px 4px #0006}
+.tag{position:absolute;left:6px;top:6px;background:#000b;color:#fff;font:700 10px var(--mono);padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+.tag.bad{background:var(--bad)}
+.syn{position:absolute;left:6px;bottom:50px;background:#000b;color:#fff;font:700 10px var(--mono);padding:2px 6px;border-radius:4px}
+.addbar{display:flex;gap:6px;margin-top:4px}
+.addbar button{flex:1;padding:6px 0;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:700 15px var(--body);cursor:pointer}
+.addbar button.add{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.addbar button.cmd{background:var(--acorn);border-color:var(--acorn);color:var(--acorn-fg);font-size:13px}
+.status{text-align:center;color:var(--muted);padding:24px 0;font-size:14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.stat b{display:block;font:800 22px var(--display);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.curve{display:flex;align-items:flex-end;gap:6px;height:70px;margin-top:12px}
+.curve div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font:11px var(--mono);color:var(--muted)}
+.curve i{display:block;width:100%;background:var(--silver);border-radius:3px 3px 0 0;min-height:2px}
+.group h3{font:800 13px var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 6px;display:flex;justify-content:space-between}
+.item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
+.item .q{font:700 13px var(--mono);width:28px;text-align:right;color:var(--acorn)}
+.item .t{flex:1;min-width:0}
+.item .t a{color:var(--fg);text-decoration:none;font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .t small{color:var(--muted);font-size:12px}
+.ib{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;width:32px;height:32px;font:700 16px var(--body);cursor:pointer}
+.ib.on{background:var(--acorn);color:var(--acorn-fg);border-color:var(--acorn)}
+.warn{color:var(--bad);font-size:13px}
+.okc{color:var(--ok);font-size:13px}
+.opts{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:14px}
+.opts label{display:flex;align-items:center;gap:6px}
+.opts input[type=number]{width:72px;flex:none;padding:6px 8px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.btn{padding:10px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:700 14px var(--body);cursor:pointer}
+.btn.pri{background:var(--acorn);border-color:var(--acorn);color:var(--acorn-fg)}
+textarea{width:100%;min-height:160px;margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:13px/1.5 var(--mono)}
+.sentinel{height:1px}
+.cmdbar{display:flex;gap:12px;align-items:center}
+.cmdbar img{width:84px;border-radius:5%/3.6%;flex:none}
+.cmdbar .info{min-width:0;flex:1}
+.cmdbar h2{font:800 18px var(--display);margin:0 0 2px}
+.cmdbar p{margin:2px 0;color:var(--muted);font-size:13px}
+.seg{display:flex;gap:6px;margin:10px 0 4px}
+.seg .chip{flex:1;text-align:center}
+dialog{border:0;padding:0;background:transparent;max-width:min(92vw,420px);width:100%;color:var(--fg)}
+dialog::backdrop{background:#000a}
+.modal{background:var(--surface);border-radius:12px;padding:12px;max-height:92vh;overflow:auto}
+.modal img{width:100%;border-radius:5%/3.6%;display:block}
+.modal h2{font:800 18px var(--display);margin:10px 0 2px}
+.modal p{margin:4px 0;color:var(--muted);font-size:13px;white-space:pre-line}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><h1>Acorn <span>Decks</span></h1><span class="mono" id="poolnote">all dates</span></div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-search" aria-selected="true">Search</button>
+    <button class="tab" role="tab" id="tab-cmd" aria-selected="false">Commander</button>
+    <button class="tab" role="tab" id="tab-deck" aria-selected="false">Deck<span class="n" id="count">0</span></button>
+  </div>
+</header>
+
+<!-- SEARCH -->
+<main id="view-search">
+  <div class="lbl">Card pool (none selected = everything)</div>
+  <div class="chips" id="chips"></div>
+  <form class="row" id="form">
+    <input type="search" id="q" placeholder="Name or Scryfall syntax: t:creature c:r o:draw" autocomplete="off" autocapitalize="off" enterkeyhint="search">
+    <button class="go" type="submit">Search</button>
+  </form>
+  <div class="opts" style="margin-top:10px"><label><input type="checkbox" id="idlock"> Only cards in my commander's colors</label></div>
+  <div class="hint" id="hint"></div>
+  <div class="grid" id="grid"></div>
+  <div class="sentinel" id="sentinel"></div>
+  <div class="status" id="status"></div>
+</main>
+
+<!-- COMMANDER -->
+<main id="view-cmd" hidden>
+  <div class="panel" id="cmdcur" hidden></div>
+  <div id="cmdpick">
+    <div class="lbl">Colors (commander identity)</div>
+    <div class="chips" id="cchips-c"></div>
+    <div class="lbl">Themes</div>
+    <div class="chips" id="cchips-t"></div>
+    <div class="lbl">Pool</div>
+    <div class="chips" id="cchips-p"></div>
+    <form class="row" id="cform">
+      <input type="search" id="cq" placeholder="Extra criteria: name, o:flip, pow>=5 …" autocomplete="off" autocapitalize="off" enterkeyhint="search">
+      <button class="go" type="submit">Search</button>
+    </form>
+    <div class="hint" id="chint"></div>
+    <div class="grid" id="cgrid"></div>
+    <div class="sentinel" id="csentinel"></div>
+    <div class="status" id="cstatus"></div>
+  </div>
+  <div id="sugg" hidden>
+    <div class="lbl" id="sugg-title">Suggestions</div>
+    <div class="opts" style="margin-bottom:8px"><label><input type="checkbox" id="onlypool" checked> Only cards from the pool</label></div>
+    <div class="hint" id="sugg-hint"></div>
+    <div class="grid" id="sgrid"></div>
+    <div class="sentinel" id="ssentinel"></div>
+    <div class="status" id="sstatus"></div>
+  </div>
+</main>
+
+<!-- DECK -->
+<main id="view-deck" hidden>
+  <div class="panel">
+    <div class="stats">
+      <div class="stat"><b id="s-total">0</b><span>Cards</span></div>
+      <div class="stat"><b id="s-unique">0</b><span>Unique</span></div>
+      <div class="stat"><b id="s-avg">0.0</b><span>Avg mana value</span></div>
+      <div class="stat"><b id="s-cost">$0</b><span>Est. price</span></div>
+    </div>
+    <div class="curve" id="curve"></div>
+    <div id="checks" style="margin-top:10px"></div>
+  </div>
+  <div class="panel">
+    <div class="opts">
+      <label>Deck size <input type="number" id="size" min="1" max="500" inputmode="numeric"></label>
+      <label><input type="checkbox" id="single"> Singleton</label>
+    </div>
+    <div class="hint" style="margin-bottom:0">Basic lands and "any number" cards are exempt from singleton.</div>
+  </div>
+  <div id="decklist"></div>
+  <div class="btns">
+    <button class="btn pri" id="copy">Copy decklist</button>
+    <button class="btn" id="show">Show as text</button>
+    <button class="btn" id="clear">Clear deck</button>
+  </div>
+  <textarea id="text" hidden readonly></textarea>
+</main>
+
+<dialog id="dlg"><div class="modal" id="modal"></div></dialog>
+
+<script>
+(function(){
+"use strict";
+var API="https://api.scryfall.com";
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+/* ---------- pools: each chip is one Scryfall term, selected chips are OR'd; none selected = all of them. No date limit anywhere. ---------- */
+var POOLS=[
+  {id:"silver",label:"Silver border",q:"border:silver"},
+  {id:"acorn",label:"Acorn stamp",q:"stamp:acorn"},
+  {id:"holiday",label:"Holiday",q:"set:hho"},
+  {id:"funny",label:"Funny sets",q:"is:funny"},
+  {id:"playtest",label:"Playtest",q:"(set:cmb1 or set:cmb2)"},
+  {id:"conspiracy",label:"Conspiracy",q:"t:conspiracy"},
+  {id:"scheme",label:"Scheme",q:"t:scheme"},
+  {id:"plane",label:"Plane / Phenomenon",q:"(t:plane or t:phenomenon)"},
+  {id:"vanguard",label:"Vanguard",q:"t:vanguard"},
+  {id:"unbasic",label:"Un-basics",q:"(border:silver t:basic)"}
+];
+var ALLQ="("+POOLS.map(function(p){return p.q}).join(" or ")+")";
+function poolQ(ids){
+  var s=POOLS.filter(function(p){return ids.indexOf(p.id)>-1}).map(function(p){return p.q});
+  return s.length?"("+s.join(" or ")+")":ALLQ;
+}
+
+var COLORS=[["W","W"],["U","U"],["B","B"],["R","R"],["G","G"],["C","⌀"]];
+var THEMES=[
+  ["Tokens","o:token"],["+1/+1 counters","o:\"+1/+1 counter\""],["Artifacts","(t:artifact or o:artifact)"],
+  ["Graveyard","(o:graveyard or o:mill)"],["Sacrifice","o:sacrifice"],["Card draw","o:\"draw a card\""],
+  ["Lifegain","(o:\"gain life\" or o:\"gains life\")"],["Spells matter","(o:\"instant or sorcery\" or o:\"cast a\")"],
+  ["Auras","(t:aura or o:aura)"],["Dice & coins","(o:\"roll a\" or o:\"flip a coin\" or o:d20)"],
+  ["Cheating the rules","(o:\"rules\" or o:\"game\" or o:\"ante\")"],["Words & names","(o:\"name\" or o:\"word\")"],
+  ["Attractions","(o:attraction or o:\"visit\")"],["Party / voting","(o:party or o:vote or o:\"each player\")"]
+];
+
+var KEY="acornDeckV1";
+var def={deck:{},commander:null,size:100,single:true,pools:[],idlock:false,cpools:[]};
+var state=(function(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s){for(var k in def)if(!(k in s))s[k]=def[k];return s}}catch(e){}return JSON.parse(JSON.stringify(def))})();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+
+/* ---------- card helpers ---------- */
+function imgOf(c,size){var u=c.image_uris||(c.card_faces&&c.card_faces[0].image_uris)||{};return u[size||"normal"]||u.small||""}
+function eligibility(c){
+  if(c.border_color==="silver")return "silver";
+  if(c.security_stamp==="acorn")return "acorn";
+  if(c.set_type==="funny")return "funny";
+  if(c.set==="hho")return "holiday";
+  if(c.set==="cmb1"||c.set==="cmb2")return "playtest";
+  return null;
+}
+function isBasic(c){return /Basic Land/.test(c.type_line||"")||/any number of cards named/i.test(c.oracle_text||"")}
+function slim(c){
+  return {id:c.id,name:c.name,set:c.set,setName:c.set_name,type:c.type_line||"",mv:c.cmc||0,
+    img:imgOf(c,"small"),big:imgOf(c,"normal"),basic:isBasic(c),elig:eligibility(c),
+    ci:c.color_identity||[],price:parseFloat((c.prices&&c.prices.usd)||0)||0,url:c.scryfall_uri,
+    text:c.oracle_text||(c.card_faces?c.card_faces.map(function(f){return f.oracle_text}).join("\n//\n"):""),
+    border:c.border_color,stamp:c.security_stamp||""};
+}
+var GROUPS=[["Commander",null],["Creatures","Creature"],["Planeswalkers","Planeswalker"],["Instants","Instant"],["Sorceries","Sorcery"],["Artifacts","Artifact"],["Enchantments","Enchantment"],["Battles","Battle"],["Conspiracy","Conspiracy"],["Scheme","Scheme"],["Plane","Plane"],["Phenomenon","Phenomenon"],["Vanguard","Vanguard"],["Stickers","Stickers"],["Other",null],["Lands","Land"]];
+function typeGroup(t){
+  if(/Land/.test(t))return "Lands";
+  for(var i=1;i<GROUPS.length;i++){var g=GROUPS[i];if(g[1]&&g[1]!=="Land"&&t.indexOf(g[1])>-1)return g[0]}
+  return "Other";
+}
+var cache={};
+function remember(s){cache[s.name]=s;return s}
+
+/* ---------- deck ops (keyed by name so reprints don't double-count) ---------- */
+function qtyOf(n){return state.deck[n]?state.deck[n].qty:0}
+function total(){var n=0;for(var k in state.deck)n+=state.deck[k].qty;return n}
+function toast(m){var s=currentStatus();if(!s)return;var o=s.textContent;s.textContent=m;setTimeout(function(){if(s.textContent===m)s.textContent=o},1400)}
+function add(c){
+  var e=state.deck[c.name];
+  if(e){if(state.single&&!e.card.basic)return toast("Singleton: already in deck");e.qty++}
+  else state.deck[c.name]={qty:1,card:c};
+  save();refresh();
+}
+function sub(n){
+  var e=state.deck[n];if(!e)return;
+  e.qty--;if(e.qty<=0){delete state.deck[n];if(state.commander===n)state.commander=null}
+  save();refresh();
+}
+function setCommander(c){
+  if(!state.deck[c.name])state.deck[c.name]={qty:1,card:c};
+  state.commander=c.name;save();refresh();showTab("cmd");
+}
+
+/* ---------- generic endless-scroll grid fed by Scryfall search ---------- */
+function makeBrowser(o){
+  var b={epoch:0,next:null,loading:false};
+  b.io=new IntersectionObserver(function(es){if(es[0].isIntersecting&&b.next&&!b.loading)b.more()},{rootMargin:"900px"});
+  b.start=function(q,order){
+    b.epoch++;b.next=API+"/cards/search?unique=cards&include_extras=true&order="+(order||"name")+"&q="+encodeURIComponent(q);
+    o.grid.innerHTML="";o.status.textContent="Searching…";b.more();
+  };
+  b.more=function(){
+    if(b.loading||!b.next)return;
+    b.loading=true;var my=b.epoch;
+    fetch(b.next).then(function(r){
+      if(r.status===404)return {data:[],has_more:false};
+      if(!r.ok)throw new Error("Scryfall returned "+r.status);
+      return r.json();
+    }).then(function(j){
+      if(my!==b.epoch)return;
+      b.loading=false;b.next=j.has_more?j.next_page:null;
+      j.data.forEach(function(c){o.grid.appendChild(o.tile(remember(slim(c))))});
+      o.status.textContent=b.next?"Loading more as you scroll…":(o.grid.children.length?"End of results":"No cards match that search.");
+      if(b.next)b.io.observe(o.sentinel);
+    }).catch(function(err){
+      if(my!==b.epoch)return;
+      b.loading=false;
+      o.status.innerHTML=esc(err.message)+' · <a href="#" class="retry" style="color:var(--acorn)">Retry</a>';
+      o.status.querySelector(".retry").onclick=function(e){e.preventDefault();o.status.textContent="Loading…";b.more()};
+    });
+  };
+  return b;
+}
+
+function tile(c,opts){
+  opts=opts||{};
+  var d=document.createElement("div");d.className="card";d.dataset.name=c.name;
+  d.innerHTML='<img loading="lazy" alt="'+esc(c.name)+'" src="'+esc(c.img)+'">'+
+    (c.elig?'<span class="tag">'+esc(c.elig)+'</span>':'<span class="tag bad">not pool</span>')+
+    '<span class="badge" hidden></span>'+
+    (opts.note?'<span class="syn">'+esc(opts.note)+'</span>':'')+
+    '<div class="nm">'+esc(c.name)+'</div>'+
+    '<div class="addbar">'+(opts.commander?'<button class="cmd">Make commander</button>':'<button class="sub" aria-label="Remove one">−</button><button class="add" aria-label="Add one">+</button>')+'</div>';
+  d.querySelector("img").onclick=function(){openCard(c)};
+  if(opts.commander)d.querySelector(".cmd").onclick=function(){setCommander(c)};
+  else{d.querySelector(".add").onclick=function(){add(c)};d.querySelector(".sub").onclick=function(){sub(c.name)}}
+  paintTile(d);return d;
+}
+function paintTile(d){var q=qtyOf(d.dataset.name),b=d.querySelector(".badge");b.hidden=!q;b.textContent="×"+q}
+
+function openCard(c){
+  var legendary=/Legendary/.test(c.type)||/can be your commander/i.test(c.text);
+  $("modal").innerHTML='<img alt="'+esc(c.name)+'" src="'+esc(c.big)+'">'+
+    '<h2>'+esc(c.name)+'</h2><p>'+esc(c.type)+' · '+esc(c.setName)+(c.stamp?' · '+esc(c.stamp)+' stamp':'')+(c.border==="silver"?' · silver border':'')+'</p>'+
+    '<p>'+esc(c.text)+'</p>'+
+    '<div class="btns"><button class="btn pri" id="m-add">Add to deck</button>'+(legendary?'<button class="btn" id="m-cmd">Make commander</button>':'')+
+    '<a class="btn" style="text-decoration:none" href="'+esc(c.url)+'" target="_blank" rel="noopener">Scryfall</a><button class="btn" id="m-close">Close</button></div>';
+  $("m-add").onclick=function(){add(c)};
+  if(legendary)$("m-cmd").onclick=function(){$("dlg").close();setCommander(c)};
+  $("m-close").onclick=function(){$("dlg").close()};
+  $("dlg").showModal();
+}
+$("dlg").addEventListener("click",function(e){if(e.target===$("dlg"))$("dlg").close()});
+
+/* ---------- SEARCH tab ---------- */
+var search=makeBrowser({grid:$("grid"),status:$("status"),sentinel:$("sentinel"),tile:function(c){return tile(c)}});
+var searchQ="";
+function cmdIdentity(){
+  var e=state.commander&&state.deck[state.commander];if(!e)return "";
+  var ci=e.card.ci;return ci.length?"id<="+ci.join(""):"id:c";
+}
+function runSearch(){
+  var q=poolQ(state.pools)+(searchQ?" ("+searchQ+")":"");
+  if(state.idlock&&cmdIdentity())q+=" "+cmdIdentity();
+  $("hint").innerHTML="Query: <code>"+esc(q)+"</code>";
+  search.start(q);
+}
+function drawChips(){
+  $("chips").innerHTML=POOLS.map(function(p){return '<button class="chip" data-id="'+p.id+'" aria-pressed="'+(state.pools.indexOf(p.id)>-1)+'">'+p.label+'</button>'}).join("");
+  $("poolnote").textContent=state.pools.length?state.pools.length+" pool"+(state.pools.length>1?"s":""):"all pools · all dates";
+}
+$("chips").addEventListener("click",function(e){
+  var b=e.target.closest(".chip");if(!b)return;
+  var i=state.pools.indexOf(b.dataset.id);if(i>-1)state.pools.splice(i,1);else state.pools.push(b.dataset.id);
+  save();drawChips();runSearch();
+});
+$("form").addEventListener("submit",function(e){e.preventDefault();searchQ=$("q").value.trim();runSearch();$("q").blur()});
+$("idlock").onchange=function(){state.idlock=this.checked;save();runSearch()};
+
+/* ---------- COMMANDER tab ---------- */
+var csel={colors:[],themes:[]};
+var cmdBrowser=makeBrowser({grid:$("cgrid"),status:$("cstatus"),sentinel:$("csentinel"),tile:function(c){return tile(c,{commander:true})}});
+var cq="";
+function cmdQuery(){
+  var q="(t:legendary t:creature or o:\"can be your commander\") "+poolQ(state.cpools);
+  if(csel.colors.length){
+    var cs=csel.colors.filter(function(c){return c!=="C"});
+    if(csel.colors.indexOf("C")>-1&&!cs.length)q+=" id:c";
+    else q+=" id<="+cs.join("");
+  }
+  if(csel.themes.length)q+=" ("+csel.themes.map(function(i){return THEMES[i][1]}).join(" or ")+")";
+  if(cq)q+=" ("+cq+")";
+  return q;
+}
+function runCmdSearch(){var q=cmdQuery();$("chint").innerHTML="Query: <code>"+esc(q)+"</code>";cmdBrowser.start(q)}
+function drawCmdChips(){
+  $("cchips-c").innerHTML=COLORS.map(function(c){return '<button class="chip pip" data-c="'+c[0]+'" aria-pressed="'+(csel.colors.indexOf(c[0])>-1)+'">'+c[1]+'</button>'}).join("");
+  $("cchips-t").innerHTML=THEMES.map(function(t,i){return '<button class="chip" data-t="'+i+'" aria-pressed="'+(csel.themes.indexOf(i)>-1)+'">'+t[0]+'</button>'}).join("");
+  $("cchips-p").innerHTML=POOLS.map(function(p){return '<button class="chip" data-p="'+p.id+'" aria-pressed="'+(state.cpools.indexOf(p.id)>-1)+'">'+p.label+'</button>'}).join("");
+}
+function toggle(arr,v){var i=arr.indexOf(v);if(i>-1)arr.splice(i,1);else arr.push(v)}
+$("view-cmd").addEventListener("click",function(e){
+  var b=e.target.closest(".chip");if(!b)return;
+  if(b.dataset.c)toggle(csel.colors,b.dataset.c);
+  else if(b.dataset.t)toggle(csel.themes,+b.dataset.t);
+  else if(b.dataset.p){toggle(state.cpools,b.dataset.p);save()}
+  else return;
+  drawCmdChips();runCmdSearch();
+});
+$("cform").addEventListener("submit",function(e){e.preventDefault();cq=$("cq").value.trim();runCmdSearch();$("cq").blur()});
+
+/* commander header + suggestions */
+var sugg={list:[],shown:0,source:"",loading:false};
+function renderCmdHeader(){
+  var e=state.commander&&state.deck[state.commander];
+  $("cmdcur").hidden=!e;$("sugg").hidden=!e;$("cmdpick").hidden=!!e;
+  if(!e){return}
+  var c=e.card;
+  $("cmdcur").innerHTML='<div class="cmdbar"><img alt="" src="'+esc(c.big||c.img)+'"><div class="info"><div class="lbl" style="margin:0">Commander</div><h2>'+esc(c.name)+'</h2><p>'+esc(c.type)+'</p><p class="mono">Identity: '+(c.ci.length?c.ci.join(""):"colorless")+'</p><div class="btns"><button class="btn" id="chg">Change commander</button></div></div></div>';
+  $("chg").onclick=function(){state.commander=null;save();refresh()};
+}
+function edhSlug(n){return n.toLowerCase().split(" // ")[0].replace(/[',]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")}
+function loadSuggestions(){
+  var e=state.commander&&state.deck[state.commander];if(!e)return;
+  var c=e.card;
+  if(sugg.cmd===c.name&&sugg.list.length)return renderSuggestions();
+  sugg={cmd:c.name,list:[],source:"",loading:true,names:[]};
+  $("sgrid").innerHTML="";$("sstatus").textContent="Asking EDHREC for high-synergy cards…";
+  $("sugg-title").textContent="High-synergy suggestions for "+c.name;
+  fetch("https://json.edhrec.com/pages/commanders/"+edhSlug(c.name)+".json").then(function(r){
+    if(!r.ok)throw new Error("EDHREC "+r.status);return r.json();
+  }).then(function(j){
+    var lists=(j.container&&j.container.json_dict&&j.container.json_dict.cardlists)||[];
+    var hs=lists.filter(function(l){return /high synergy/i.test(l.header)});
+    var rest=lists.filter(function(l){return hs.indexOf(l)<0&&!/land|commander/i.test(l.header)});
+    var out=[];hs.concat(rest).forEach(function(l){(l.cardviews||[]).forEach(function(v){
+      out.push({name:v.name,note:typeof v.synergy==="number"?(v.synergy>0?"+":"")+Math.round(v.synergy*100)+"% syn":""})})});
+    if(!out.length)throw new Error("EDHREC has no data for this commander");
+    sugg.source="EDHREC";sugg.names=out;
+    return fetchCollection(out.map(function(x){return x.name}));
+  }).then(function(cards){
+    var by={};cards.forEach(function(s){by[s.name]=s});
+    sugg.list=sugg.names.map(function(x){var s=by[x.name];return s?{c:s,note:x.note}:null}).filter(Boolean);
+    sugg.loading=false;renderSuggestions();
+  }).catch(function(err){
+    /* fallback: pool cards in the commander's colors, most popular first */
+    sugg.source="Scryfall";sugg.names=[];
+    var q=poolQ(state.pools)+" "+(c.ci.length?"id<="+c.ci.join(""):"id:c")+" -t:legendary";
+    var terms=(c.text||"").match(/\b(token|counter|artifact|sacrifice|graveyard|draw|spell|aura|creature)s?\b/gi);
+    sugg.fallbackReason=err.message;sugg.q=q;sugg.loading=false;
+    renderFallback();
+  });
+}
+function fetchCollection(names){
+  var chunks=[];for(var i=0;i<names.length&&i<225;i+=75)chunks.push(names.slice(i,i+75));
+  return Promise.all(chunks.map(function(ch){
+    return fetch(API+"/cards/collection",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({identifiers:ch.map(function(n){return {name:n}})})})
+      .then(function(r){if(!r.ok)throw new Error("Scryfall "+r.status);return r.json()}).then(function(j){return j.data.map(function(c){return remember(slim(c))})});
+  })).then(function(arr){return [].concat.apply([],arr)});
+}
+var suggBrowser=makeBrowser({grid:$("sgrid"),status:$("sstatus"),sentinel:$("ssentinel"),tile:function(c){return tile(c)}});
+function renderSuggestions(){
+  $("sgrid").innerHTML="";suggBrowser.next=null;suggBrowser.epoch++;
+  var only=$("onlypool").checked;
+  var list=sugg.list.filter(function(x){return !only||x.c.elig});
+  $("sugg-hint").textContent=sugg.source==="EDHREC"?"From EDHREC, highest synergy first. Cards outside the pool are hidden unless you untick the box.":"";
+  list.forEach(function(x){$("sgrid").appendChild(tile(x.c,{note:x.note}))});
+  $("sstatus").textContent=list.length?list.length+" suggestions":(only&&sugg.list.length?"EDHREC suggestions are all outside the pool. Untick the box to see them.":"No suggestions.");
+}
+function renderFallback(){
+  $("sugg-hint").innerHTML="EDHREC has no page for this commander ("+esc(sugg.fallbackReason)+"). Showing pool cards in its colors instead, ranked by popularity.<br><code>"+esc(sugg.q)+"</code>";
+  suggBrowser.start(sugg.q,"edhrec");
+}
+$("onlypool").onchange=function(){if(sugg.source==="EDHREC")renderSuggestions()};
+
+/* ---------- DECK tab ---------- */
+function renderDeck(){
+  var names=Object.keys(state.deck),t=total(),mvSum=0,cost=0,curve=[0,0,0,0,0,0,0,0],groups={},lands=0;
+  names.forEach(function(n){
+    var e=state.deck[n],c=e.card,g=state.commander===n?"Commander":typeGroup(c.type);
+    (groups[g]=groups[g]||[]).push(e);
+    cost+=c.price*e.qty;
+    if(/Land/.test(c.type))lands+=e.qty;else{mvSum+=c.mv*e.qty;curve[Math.min(7,Math.floor(c.mv))]+=e.qty}
+  });
+  var nonland=t-lands;
+  $("s-total").textContent=t;$("s-unique").textContent=names.length;
+  $("s-avg").textContent=nonland?(mvSum/nonland).toFixed(2):"0.00";
+  $("s-cost").textContent="$"+cost.toFixed(0);
+  var mx=Math.max.apply(null,curve.concat([1]));
+  $("curve").innerHTML=curve.map(function(v,i){return '<div><span>'+(v||"")+'</span><i style="height:'+(v/mx*70)+'%"></i><span>'+(i===7?"7+":i)+'</span></div>'}).join("");
+  var m=[];
+  m.push(t===state.size?'<div class="okc">'+t+' / '+state.size+' cards</div>':'<div class="warn">'+t+' / '+state.size+' cards ('+(t<state.size?(state.size-t)+' to go':(t-state.size)+' over')+')</div>');
+  var bad=names.filter(function(n){return !state.deck[n].card.elig});
+  if(bad.length)m.push('<div class="warn">Not silver, acorn, holiday or funny: '+bad.map(esc).join(", ")+'</div>');
+  else if(names.length)m.push('<div class="okc">Every card is in the pool</div>');
+  var cmd=state.commander&&state.deck[state.commander];
+  if(cmd){
+    var off=names.filter(function(n){return state.deck[n].card.ci.some(function(x){return cmd.card.ci.indexOf(x)<0})});
+    if(off.length)m.push('<div class="warn">Outside commander colors: '+off.map(esc).join(", ")+'</div>');
+  }
+  if(state.single){var dup=names.filter(function(n){var e=state.deck[n];return e.qty>1&&!e.card.basic});if(dup.length)m.push('<div class="warn">Singleton breaks: '+dup.map(esc).join(", ")+'</div>')}
+  $("checks").innerHTML=m.join("");
+  $("size").value=state.size;$("single").checked=state.single;
+  var out="";
+  GROUPS.map(function(g){return g[0]}).concat(Object.keys(groups)).filter(function(g,i,a){return a.indexOf(g)===i}).forEach(function(g){
+    var list=groups[g];if(!list)return;
+    list.sort(function(a,b){return a.card.mv-b.card.mv||a.card.name.localeCompare(b.card.name)});
+    out+='<div class="group"><h3><span>'+g+'</span><span class="mono">'+list.reduce(function(a,e){return a+e.qty},0)+'</span></h3>';
+    list.forEach(function(e){
+      var c=e.card,isC=state.commander===c.name;
+      out+='<div class="item" data-name="'+esc(c.name)+'"><span class="q">'+e.qty+'</span><div class="t"><a href="#" data-act="open">'+esc(c.name)+'</a><small>'+esc(c.type)+' · '+esc(c.setName)+'</small></div>'+
+        (/Legendary/.test(c.type)?'<button class="ib'+(isC?' on':'')+'" data-act="cmd" aria-label="Set as commander">★</button>':'')+
+        '<button class="ib" data-act="sub" aria-label="Remove one">−</button><button class="ib" data-act="add" aria-label="Add one">+</button></div>';
+    });
+    out+='</div>';
+  });
+  $("decklist").innerHTML=out||'<div class="status">No cards yet. Add some from Search.</div>';
+}
+$("decklist").addEventListener("click",function(e){
+  var b=e.target.closest("[data-act]");if(!b)return;e.preventDefault();
+  var n=b.closest(".item").dataset.name,a=b.dataset.act;
+  if(a==="add")add(state.deck[n].card);else if(a==="sub")sub(n);else if(a==="open")openCard(state.deck[n].card);
+  else if(a==="cmd"){if(state.commander===n){state.commander=null;save();refresh()}else setCommander(state.deck[n].card)}
+});
+function decklistText(){
+  var lines=[],cmd=state.commander;
+  if(cmd)lines.push("Commander","1 "+cmd,"","Deck");
+  Object.keys(state.deck).sort().forEach(function(n){var e=state.deck[n];if(n===cmd){if(e.qty>1)lines.push((e.qty-1)+" "+n);return}lines.push(e.qty+" "+n)});
+  return lines.join("\n");
+}
+$("copy").onclick=function(){
+  var t=decklistText(),b=$("copy");
+  function done(){b.textContent="Copied";setTimeout(function(){b.textContent="Copy decklist"},1400)}
+  function fb(){var a=$("text");a.hidden=false;a.value=t;a.select();try{document.execCommand("copy");done()}catch(e){}}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,fb);else fb();
+};
+$("show").onclick=function(){var a=$("text");a.hidden=!a.hidden;a.value=decklistText()};
+var armed=false;
+$("clear").onclick=function(){
+  var b=$("clear");
+  if(!armed){armed=true;b.textContent="Tap again to clear";setTimeout(function(){armed=false;b.textContent="Clear deck"},2500);return}
+  state.deck={};state.commander=null;armed=false;b.textContent="Clear deck";save();refresh();
+};
+$("size").onchange=function(){state.size=Math.max(1,parseInt(this.value,10)||100);save();refresh()};
+$("single").onchange=function(){state.single=this.checked;save();refresh()};
+
+/* ---------- shell ---------- */
+var tabNow="search";
+function currentStatus(){return tabNow==="search"?$("status"):tabNow==="cmd"?($("sugg").hidden?$("cstatus"):$("sstatus")):null}
+function refresh(){
+  $("count").textContent=total();
+  document.querySelectorAll(".card").forEach(paintTile);
+  renderCmdHeader();
+  if(tabNow==="deck")renderDeck();
+}
+function showTab(t){
+  tabNow=t;
+  ["search","cmd","deck"].forEach(function(x){$("view-"+x).hidden=x!==t;$("tab-"+x).setAttribute("aria-selected",x===t)});
+  if(t==="deck")renderDeck();
+  if(t==="cmd"){renderCmdHeader();if(state.commander)loadSuggestions()}
+  window.scrollTo(0,0);
+}
+$("tab-search").onclick=function(){showTab("search")};
+$("tab-cmd").onclick=function(){showTab("cmd")};
+$("tab-deck").onclick=function(){showTab("deck")};
+$("idlock").checked=state.idlock;
+
+drawChips();drawCmdChips();refresh();runSearch();runCmdSearch();
+})();
+</script>
+<script>if("serviceWorker"in navigator&&location.protocol.indexOf("http")===0){navigator.serviceWorker.register("sw.js").catch(function(){})}</script>
+</body>
+</html>
