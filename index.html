@@ -126,7 +126,11 @@ dialog::backdrop{background:#000a}
     <input type="search" id="q" placeholder="Name or Scryfall syntax: t:creature c:r o:draw" autocomplete="off" autocapitalize="off" enterkeyhint="search">
     <button class="go" type="submit">Search</button>
   </form>
-  <div class="opts" style="margin-top:10px"><label><input type="checkbox" id="idlock"> Only cards in my commander's colors</label></div>
+  <div class="opts" style="margin-top:10px;flex-direction:column;align-items:flex-start;gap:6px">
+    <label><input type="checkbox" id="paper"> Paper cards only</label>
+    <label><input type="checkbox" id="extras"> Include conspiracies, tokens, planes, schemes, etc.</label>
+    <label><input type="checkbox" id="idlock"> Only cards in my commander's colors</label>
+  </div>
   <div class="hint" id="hint"></div>
   <div class="grid" id="grid"></div>
   <div class="sentinel" id="sentinel"></div>
@@ -143,6 +147,10 @@ dialog::backdrop{background:#000a}
     <div class="chips" id="cchips-t"></div>
     <div class="lbl">Pool</div>
     <div class="chips" id="cchips-p"></div>
+    <div class="opts" style="margin-top:10px;flex-direction:column;align-items:flex-start;gap:6px">
+      <label><input type="checkbox" id="paper2"> Paper cards only</label>
+      <label><input type="checkbox" id="extras2"> Include conspiracies, tokens, planes, schemes, etc.</label>
+    </div>
     <form class="row" id="cform">
       <input type="search" id="cq" placeholder="Extra criteria: name, o:flip, pow>=5 …" autocomplete="off" autocapitalize="off" enterkeyhint="search">
       <button class="go" type="submit">Search</button>
@@ -206,12 +214,21 @@ var POOLS=[
   {id:"holiday",label:"Holiday",q:"set:hho"},
   {id:"funny",label:"Funny sets",q:"is:funny"},
   {id:"playtest",label:"Playtest",q:"(set:cmb1 or set:cmb2)"},
-  {id:"conspiracy",label:"Conspiracy",q:"t:conspiracy"},
-  {id:"scheme",label:"Scheme",q:"t:scheme"},
-  {id:"plane",label:"Plane / Phenomenon",q:"(t:plane or t:phenomenon)"},
-  {id:"vanguard",label:"Vanguard",q:"t:vanguard"},
+  {id:"conspiracy",label:"Conspiracy",q:"t:conspiracy",x:1},
+  {id:"scheme",label:"Scheme",q:"layout:scheme",x:1},
+  {id:"plane",label:"Plane / Phenomenon",q:"layout:planar",x:1},
+  {id:"vanguard",label:"Vanguard",q:"layout:vanguard",x:1},
   {id:"unbasic",label:"Un-basics",q:"(border:silver t:basic)"}
 ];
+function vis(p){return state.extras||!p.x}
+function keepP(id){return !POOLS.some(function(p){return p.id===id&&p.x})}
+/* Query scope: paper-only, and (unless switched on) no conspiracies, schemes, planes, vanguards, tokens, emblems, attractions, contraptions, stickers */
+function scope(){
+  var q="";
+  if(state.paper)q+=" game:paper";
+  if(!state.extras)q+=" -t:conspiracy -t:contraption -t:attraction -t:stickers -t:dungeon -layout:scheme -layout:planar -layout:vanguard -layout:token -layout:double_faced_token -layout:emblem -layout:art_series";
+  return q;
+}
 var ALLQ="("+POOLS.map(function(p){return p.q}).join(" or ")+")";
 function poolQ(ids){
   var s=POOLS.filter(function(p){return ids.indexOf(p.id)>-1}).map(function(p){return p.q});
@@ -229,7 +246,7 @@ var THEMES=[
 ];
 
 var KEY="acornDeckV1";
-var def={deck:{},commander:null,size:100,single:true,pools:[],idlock:false,cpools:[]};
+var def={deck:{},commander:null,size:100,single:true,pools:[],idlock:false,cpools:[],paper:true,extras:false};
 var state=(function(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s){for(var k in def)if(!(k in s))s[k]=def[k];return s}}catch(e){}return JSON.parse(JSON.stringify(def))})();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
 
@@ -247,7 +264,7 @@ function isBasic(c){return /Basic Land/.test(c.type_line||"")||/any number of ca
 function slim(c){
   return {id:c.id,name:c.name,set:c.set,setName:c.set_name,type:c.type_line||"",mv:c.cmc||0,
     img:imgOf(c,"small"),big:imgOf(c,"normal"),basic:isBasic(c),elig:eligibility(c),
-    ci:c.color_identity||[],price:parseFloat((c.prices&&c.prices.usd)||0)||0,url:c.scryfall_uri,
+    ci:c.color_identity||[],paper:(c.games||[]).indexOf("paper")>-1,price:parseFloat((c.prices&&c.prices.usd)||0)||0,url:c.scryfall_uri,
     text:c.oracle_text||(c.card_faces?c.card_faces.map(function(f){return f.oracle_text}).join("\n//\n"):""),
     border:c.border_color,stamp:c.security_stamp||""};
 }
@@ -351,11 +368,12 @@ function cmdIdentity(){
 function runSearch(){
   var q=poolQ(state.pools)+(searchQ?" ("+searchQ+")":"");
   if(state.idlock&&cmdIdentity())q+=" "+cmdIdentity();
+  q+=scope();
   $("hint").innerHTML="Query: <code>"+esc(q)+"</code>";
   search.start(q);
 }
 function drawChips(){
-  $("chips").innerHTML=POOLS.map(function(p){return '<button class="chip" data-id="'+p.id+'" aria-pressed="'+(state.pools.indexOf(p.id)>-1)+'">'+p.label+'</button>'}).join("");
+  $("chips").innerHTML=POOLS.filter(vis).map(function(p){return '<button class="chip" data-id="'+p.id+'" aria-pressed="'+(state.pools.indexOf(p.id)>-1)+'">'+p.label+'</button>'}).join("");
   $("poolnote").textContent=state.pools.length?state.pools.length+" pool"+(state.pools.length>1?"s":""):"all pools · all dates";
 }
 $("chips").addEventListener("click",function(e){
@@ -379,13 +397,13 @@ function cmdQuery(){
   }
   if(csel.themes.length)q+=" ("+csel.themes.map(function(i){return THEMES[i][1]}).join(" or ")+")";
   if(cq)q+=" ("+cq+")";
-  return q;
+  return q+scope();
 }
 function runCmdSearch(){var q=cmdQuery();$("chint").innerHTML="Query: <code>"+esc(q)+"</code>";cmdBrowser.start(q)}
 function drawCmdChips(){
   $("cchips-c").innerHTML=COLORS.map(function(c){return '<button class="chip pip" data-c="'+c[0]+'" aria-pressed="'+(csel.colors.indexOf(c[0])>-1)+'">'+c[1]+'</button>'}).join("");
   $("cchips-t").innerHTML=THEMES.map(function(t,i){return '<button class="chip" data-t="'+i+'" aria-pressed="'+(csel.themes.indexOf(i)>-1)+'">'+t[0]+'</button>'}).join("");
-  $("cchips-p").innerHTML=POOLS.map(function(p){return '<button class="chip" data-p="'+p.id+'" aria-pressed="'+(state.cpools.indexOf(p.id)>-1)+'">'+p.label+'</button>'}).join("");
+  $("cchips-p").innerHTML=POOLS.filter(vis).map(function(p){return '<button class="chip" data-p="'+p.id+'" aria-pressed="'+(state.cpools.indexOf(p.id)>-1)+'">'+p.label+'</button>'}).join("");
 }
 function toggle(arr,v){var i=arr.indexOf(v);if(i>-1)arr.splice(i,1);else arr.push(v)}
 $("view-cmd").addEventListener("click",function(e){
@@ -434,7 +452,7 @@ function loadSuggestions(){
   }).catch(function(err){
     /* fallback: pool cards in the commander's colors, most popular first */
     sugg.source="Scryfall";sugg.names=[];
-    var q=poolQ(state.pools)+" "+(c.ci.length?"id<="+c.ci.join(""):"id:c")+" -t:legendary";
+    var q=poolQ(state.pools)+" "+(c.ci.length?"id<="+c.ci.join(""):"id:c")+" -t:legendary"+scope();
     var terms=(c.text||"").match(/\b(token|counter|artifact|sacrifice|graveyard|draw|spell|aura|creature)s?\b/gi);
     sugg.fallbackReason=err.message;sugg.q=q;sugg.loading=false;
     renderFallback();
@@ -451,7 +469,7 @@ var suggBrowser=makeBrowser({grid:$("sgrid"),status:$("sstatus"),sentinel:$("sse
 function renderSuggestions(){
   $("sgrid").innerHTML="";suggBrowser.next=null;suggBrowser.epoch++;
   var only=$("onlypool").checked;
-  var list=sugg.list.filter(function(x){return !only||x.c.elig});
+  var list=sugg.list.filter(function(x){return (!only||x.c.elig)&&(!state.paper||x.c.paper)});
   $("sugg-hint").textContent=sugg.source==="EDHREC"?"From EDHREC, highest synergy first. Cards outside the pool are hidden unless you untick the box.":"";
   list.forEach(function(x){$("sgrid").appendChild(tile(x.c,{note:x.note}))});
   $("sstatus").textContent=list.length?list.length+" suggestions":(only&&sugg.list.length?"EDHREC suggestions are all outside the pool. Untick the box to see them.":"No suggestions.");
@@ -553,6 +571,16 @@ $("tab-search").onclick=function(){showTab("search")};
 $("tab-cmd").onclick=function(){showTab("cmd")};
 $("tab-deck").onclick=function(){showTab("deck")};
 $("idlock").checked=state.idlock;
+function syncOpts(){["paper","extras"].forEach(function(k){$(k).checked=state[k];$(k+"2").checked=state[k]})}
+function onOpt(k,v){
+  state[k]=v;
+  if(k==="extras"&&!v){state.pools=state.pools.filter(keepP);state.cpools=state.cpools.filter(keepP)}
+  save();syncOpts();drawChips();drawCmdChips();runSearch();runCmdSearch();
+  sugg={list:[],cmd:null,names:[]};
+  if(tabNow==="cmd"&&state.commander)loadSuggestions();
+}
+["paper","extras"].forEach(function(k){[k,k+"2"].forEach(function(id){$(id).onchange=function(){onOpt(k,this.checked)}})});
+syncOpts();
 
 drawChips();drawCmdChips();refresh();runSearch();runCmdSearch();
 })();
