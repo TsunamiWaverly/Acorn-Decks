@@ -260,7 +260,7 @@ function eligibility(c){
   if(c.security_stamp==="acorn")return "acorn";
   if(c.set_type==="funny")return "funny";
   if(c.set==="hho")return "holiday";
-  if(c.set==="cmb1"||c.set==="cmb2")return "playtest";
+  if(c.set==="cmb1"||c.set==="cmb2"||/playtest|test card/i.test((c.set_name||"")+" "+(c.flavor_text||"")))return "playtest";
   return null;
 }
 function isBasic(c){return /Basic Land/.test(c.type_line||"")||/any number of cards named/i.test(c.oracle_text||"")}
@@ -318,7 +318,7 @@ function makeBrowser(o){
     }).then(function(j){
       if(my!==b.epoch)return;
       b.loading=false;b.next=j.has_more?j.next_page:null;
-      j.data.forEach(function(c){o.grid.appendChild(o.tile(remember(slim(c))))});
+      j.data.forEach(function(c){var sc=slim(c);if(o.inPool&&!sc.elig)sc.elig="pool";o.grid.appendChild(o.tile(remember(sc)))});
       o.status.textContent=b.next?"Loading more as you scroll…":(o.grid.children.length?"End of results":"No cards match that search.");
       if(b.next)b.io.observe(o.sentinel);
     }).catch(function(err){
@@ -360,7 +360,7 @@ function openCard(c){
 $("dlg").addEventListener("click",function(e){if(e.target===$("dlg"))$("dlg").close()});
 
 /* ---------- SEARCH tab ---------- */
-var search=makeBrowser({grid:$("grid"),status:$("status"),sentinel:$("sentinel"),tile:function(c){return tile(c)}});
+var search=makeBrowser({inPool:true,grid:$("grid"),status:$("status"),sentinel:$("sentinel"),tile:function(c){return tile(c)}});
 var searchQ="";
 function cmdIdentity(){
   var e=state.commander&&state.deck[state.commander];if(!e)return "";
@@ -387,7 +387,7 @@ $("idlock").onchange=function(){state.idlock=this.checked;save();runSearch()};
 
 /* ---------- COMMANDER tab ---------- */
 var csel={colors:[],themes:[]};
-var cmdBrowser=makeBrowser({grid:$("cgrid"),status:$("cstatus"),sentinel:$("csentinel"),tile:function(c){return tile(c,{commander:true})}});
+var cmdBrowser=makeBrowser({inPool:true,grid:$("cgrid"),status:$("cstatus"),sentinel:$("csentinel"),tile:function(c){return tile(c,{commander:true})}});
 var cq="";
 function cmdQuery(){
   var q="(t:legendary t:creature or o:\"can be your commander\") "+poolQ(state.cpools);
@@ -466,7 +466,7 @@ function fetchCollection(names){
       .then(function(r){if(!r.ok)throw new Error("Scryfall "+r.status);return r.json()}).then(function(j){return j.data.map(function(c){return remember(slim(c))})});
   })).then(function(arr){return [].concat.apply([],arr)});
 }
-var suggBrowser=makeBrowser({grid:$("sgrid"),status:$("sstatus"),sentinel:$("ssentinel"),tile:function(c){return tile(c)}});
+var suggBrowser=makeBrowser({inPool:true,grid:$("sgrid"),status:$("sstatus"),sentinel:$("ssentinel"),tile:function(c){return tile(c)}});
 function renderSuggestions(){
   $("sgrid").innerHTML="";suggBrowser.next=null;suggBrowser.epoch++;
   var only=$("onlypool").checked;
