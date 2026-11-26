@@ -30,7 +30,7 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--body);
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:env(safe-area-inset-top,0px) 40px;
   -webkit-tap-highlight-color:transparent}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);padding-block:10px 8px;border-bottom:1px solid var(--line);margin-inline:-16px;padding-inline:16px}
@@ -57,11 +57,14 @@ input[type=search],input[type=text],input[type=number]{flex:1;min-width:0;paddin
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
 .card{position:relative;min-width:0}
 .card img{display:block;width:100%;aspect-ratio:488/680;border-radius:5%/3.6%;background:var(--surface2);cursor:pointer}
-.card .nm{font-size:12px;margin-top:4px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.badge{position:absolute;top:6px;right:6px;background:var(--acorn);color:var(--acorn-fg);font:700 12px var(--mono);padding:3px 8px;border-radius:999px;box-shadow:0 1px 4px #0006}
-.tag{position:absolute;left:6px;top:6px;background:#000b;color:#fff;font:700 10px var(--mono);padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
-.tag.bad{background:var(--bad)}
-.syn{position:absolute;left:6px;bottom:50px;background:#000b;color:#fff;font:700 10px var(--mono);padding:2px 6px;border-radius:4px}
+.card .nm{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:12px;color:var(--fg);min-width:0}
+.card .nmt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.badge{flex:none;background:var(--acorn);color:var(--acorn-fg);font:700 11px var(--mono);padding:2px 7px;border-radius:999px}
+.badge[hidden]{display:none}
+.tag{background:var(--surface2);color:var(--muted);font:700 10px var(--mono);padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+.tag.bad{background:var(--bad);color:#fff}
+.syn{background:var(--surface2);color:var(--fg);font:700 10px var(--mono);padding:2px 6px;border-radius:4px}
 .addbar{display:flex;gap:6px;margin-top:4px}
 .addbar button{flex:1;padding:6px 0;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:700 15px var(--body);cursor:pointer}
 .addbar button.add{background:var(--fg);color:var(--bg);border-color:var(--fg)}
@@ -332,10 +335,8 @@ function tile(c,opts){
   opts=opts||{};
   var d=document.createElement("div");d.className="card";d.dataset.name=c.name;
   d.innerHTML='<img loading="lazy" alt="'+esc(c.name)+'" src="'+esc(c.img)+'">'+
-    (c.elig?'<span class="tag">'+esc(c.elig)+'</span>':'<span class="tag bad">not pool</span>')+
-    '<span class="badge" hidden></span>'+
-    (opts.note?'<span class="syn">'+esc(opts.note)+'</span>':'')+
-    '<div class="nm">'+esc(c.name)+'</div>'+
+    '<div class="nm"><span class="nmt">'+esc(c.name)+'</span><span class="badge" hidden></span></div>'+
+    '<div class="meta">'+(c.elig?'<span class="tag">'+esc(c.elig)+'</span>':'<span class="tag bad">not pool</span>')+(opts.note?'<span class="syn">'+esc(opts.note)+'</span>':'')+'</div>'+
     '<div class="addbar">'+(opts.commander?'<button class="cmd">Make commander</button>':'<button class="sub" aria-label="Remove one">−</button><button class="add" aria-label="Add one">+</button>')+'</div>';
   d.querySelector("img").onclick=function(){openCard(c)};
   if(opts.commander)d.querySelector(".cmd").onclick=function(){setCommander(c)};
